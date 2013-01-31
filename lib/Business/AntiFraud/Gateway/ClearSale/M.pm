@@ -102,11 +102,9 @@ sub create_xml {
 sub get_hidden_inputs {
     my ( $self, $info ) = @_;
 
-    my $buyer = $info->{buyer};
-    my $cart  = $info->{cart};
-
-use Data::Printer;
-warn p $buyer;
+    my $buyer       = $info->{buyer};
+    my $cart        = $info->{cart};
+    my $shipping    = $info->{shipping};
 
     my @hidden_inputs = (
         receiver_email => $self->receiver_email,
@@ -116,6 +114,9 @@ warn p $buyer;
         buyer_name     => $buyer->name,
         buyer_email    => $buyer->email,
     );
+
+    #SHIPPING: {
+    warn "x";
 
     my %buyer_extra = (
         address_line1    => 'shipping_address',
