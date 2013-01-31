@@ -116,7 +116,7 @@ sub get_hidden_inputs {
     );
 
     #SHIPPING: {
-    warn "x";
+    warn "Adicionar shipping aqui";
 
     my %buyer_extra = (
         address_line1    => 'shipping_address',
