@@ -102,9 +102,12 @@ sub create_xml {
 sub get_hidden_inputs {
     my ( $self, $info ) = @_;
 
+use Data::Printer;
+warn p $info;
     my $buyer       = $info->{buyer};
     my $cart        = $info->{cart};
     my $shipping    = $info->{shipping};
+    my $billing     = $info->{billing};
 
     my @hidden_inputs = (
         receiver_email => $self->receiver_email,
@@ -114,9 +117,6 @@ sub get_hidden_inputs {
         buyer_name     => $buyer->name,
         buyer_email    => $buyer->email,
     );
-
-    #SHIPPING: {
-    warn "Adicionar shipping aqui";
 
     my %buyer_extra = (
         address_line1    => 'shipping_address',
@@ -130,6 +130,25 @@ sub get_hidden_inputs {
     for (keys %buyer_extra) {
         if (my $value = $buyer->$_) {
             push @hidden_inputs, ( $buyer_extra{$_} => $value );
+        }
+    }
+
+    my $shipping_keys = $self->shipping_keys();
+    foreach my $k ( keys $shipping_keys ) {
+        my $coerce_to = $shipping_keys->{$k}->{value_from};
+        if ( my $val = $shipping->$coerce_to ) {
+            push @hidden_inputs, (
+                $shipping_keys->{$k}->{rename_field_to} => $val );
+        }
+    }
+
+
+    my $billing_keys = $self->billing_keys();
+    foreach my $k ( keys $billing_keys ) {
+        my $coerce_to = $billing_keys->{$k}->{value_from};
+        if ( my $val = $billing->$coerce_to ) {
+            push @hidden_inputs, (
+                $billing_keys->{$k}->{rename_field_to} => $val );
         }
     }
 
@@ -164,6 +183,130 @@ sub get_hidden_inputs {
     }
 
     return @hidden_inputs;
+}
+
+sub billing_keys {
+    my ( $self ) = @_;
+    return {
+        name                => {
+            rename_field_to => 'Cobranca_Nome',
+            value_from      => 'name',
+        },
+        email => {
+            rename_field_to => 'Cobranca_Email',
+            value_from      => 'email',
+        },
+        document_id => {
+            rename_field_to => 'Cobranca_Documento',
+            value_from      => 'document_id',
+        },
+        address_street => {
+            rename_field_to => 'Cobranca_Logradouro',
+            value_from      => 'address_street',
+        },
+        address_number => {
+            rename_field_to => 'Cobranca_Logradouro_Numero',
+            value_from      => 'address_number',
+        },
+        address_district => {
+            rename_field_to => 'Cobranca_Bairro',
+            value_from      => 'address_district',
+        },
+        address_city => {
+            rename_field_to => 'Cobranca_Cidade',
+            value_from      => 'address_city',
+        },
+        address_state => {
+            rename_field_to => 'Cobranca_Estado',
+            value_from      => 'address_state',
+        },
+        address_zip_code => {
+            rename_field_to => 'Cobranca_CEP',
+            value_from      => 'address_zip_code',
+        },
+        address_country => {
+            rename_field_to => 'Cobranca_Pais',
+            value_from      => 'address_country',
+        },
+        phone => {
+            rename_field_to => 'Cobranca_Telefone',
+            value_from      => 'phone',
+        },
+        phone_prefix => {
+            rename_field_to => 'Cobranca_DDD_Telefone',
+            value_from      => 'phone_prefix',
+        },
+        celular => {
+            rename_field_to => 'Cobranca_Celular',
+            value_from      => 'celular',
+        },
+        celular_prefix => {
+            rename_field_to => 'Cobranca_DDD_Celular',
+            value_from      => 'celular_prefix',
+        },
+    };
+}
+
+sub shipping_keys {
+    my ( $self ) = @_;
+    return {
+        name                => {
+            rename_field_to => 'Entrega_Nome',
+            value_from      => 'name',
+        },
+        email => {
+            rename_field_to => 'Entrega_Email',
+            value_from      => 'email',
+        },
+        document_id => {
+            rename_field_to => 'Entrega_Documento',
+            value_from      => 'document_id',
+        },
+        address_street => {
+            rename_field_to => 'Entrega_Logradouro',
+            value_from      => 'address_street',
+        },
+        address_number => {
+            rename_field_to => 'Entrega_Logradouro_Numero',
+            value_from      => 'address_number',
+        },
+        address_district => {
+            rename_field_to => 'Entrega_Bairro',
+            value_from      => 'address_district',
+        },
+        address_city => {
+            rename_field_to => 'Entrega_Cidade',
+            value_from      => 'address_city',
+        },
+        address_state => {
+            rename_field_to => 'Entrega_Estado',
+            value_from      => 'address_state',
+        },
+        address_zip_code => {
+            rename_field_to => 'Entrega_CEP',
+            value_from      => 'address_zip_code',
+        },
+        address_country => {
+            rename_field_to => 'Entrega_Pais',
+            value_from      => 'address_country',
+        },
+        phone => {
+            rename_field_to => 'Entrega_Telefone',
+            value_from      => 'phone',
+        },
+        phone_prefix => {
+            rename_field_to => 'Entrega_DDD_Telefone',
+            value_from      => 'phone_prefix',
+        },
+        celular => {
+            rename_field_to => 'Entrega_Celular',
+            value_from      => 'celular',
+        },
+        celular_prefix => {
+            rename_field_to => 'Entrega_DDD_Celular',
+            value_from      => 'celular_prefix',
+        },
+    };
 }
 
 =head1 NAME
