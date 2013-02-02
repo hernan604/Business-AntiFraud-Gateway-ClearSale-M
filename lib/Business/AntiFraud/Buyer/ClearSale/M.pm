@@ -14,24 +14,13 @@ and adds some extra attributes specific to moip
 
 =head1 ATTRIBUTES
 
-=head2 phone
-buyer phone number
+=head2 ip
+holds the buyers IP
 =cut
 
-has phone => (
+has ip => (
     is => 'rw',
 );
-
-=head2 id_pagador
-de acordo com os docs: http://labs.moip.com.br/referencia/integracao_xml_identificacao/
-id_pagador is the user_id on moip??
-TODO: verificar..
-=cut
-
-has id_pagador => (
-    is => 'rw',
-);
-
 
 
 1;

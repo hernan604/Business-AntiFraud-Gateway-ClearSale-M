@@ -6,14 +6,19 @@ use indirect;
 use multidimensional;
 use HTTP::Tiny;
 use Data::Dumper;
+use HTTP::Request::Common;
 extends qw/Business::AntiFraud::Gateway::Base/;
 
 our    $VERSION     = '0.01';
 
+=head2 codigo_integracao
+Seu codigo de integracao
+=cut
+
+has codigo_integracao => ( is => 'rw', required => 1, );
+
 =head2 ua
-
 Uses HTTP::Tiny as useragent
-
 =cut
 
 has ua => (
@@ -22,17 +27,13 @@ has ua => (
 );
 
 =head2 sandbox
-
 Indica se homologação ou sandbox
-
 =cut
 
 has sandbox => ( is => 'rw' );
 
 =head2 url_alterar_status
-
 Holds the url_alterar_status. You DONT need to pass it, it will figure out its own url based on $self->sandbox
-
 =cut
 
 has url_alterar_status => (
@@ -40,9 +41,7 @@ has url_alterar_status => (
 );
 
 =head2 url_envio_pedido
-
 Holds the url_alterar_status. You DONT need to pass it, it will figure out its own url based on $self->sandbox
-
 =cut
 
 has url_envio_pedido => (
@@ -56,16 +55,9 @@ has url_envio_pedido => (
 =cut
 
 sub BUILD {
-    my $self = shift;
+    my $self    = shift;
     my $options = shift;
-
     $self->define_ambiente();
-
-#   if ( exists $options->{ gateway } ) {
-#       warn $options->{ gateway };
-#       warn $options->{ gateway };
-#       warn $options->{ gateway };
-#   }
 };
 
 sub define_ambiente {
@@ -99,150 +91,200 @@ sub create_xml {
 
 }
 
+=head2 envar_pedidos
+recebe:
+$form (HTML::Element)
+
+e envia esse form->asHTML e retorna a resposta
+=cut
+
+sub enviar_pedidos {
+    my ( $self, $form ) = @_;
+    use Data::Printer;
+    my $content = [];
+    foreach my $item ( @{ $form->content_array_ref } ) {
+        if (
+            my $field_name  = $item->{name} and
+            my $field_value = $item->{value} )
+        {
+            push @$content, $field_name => $field_value;
+        }
+    };
+    my $res = $self->ua->request(
+        'POST',
+        $self->url_envio_pedido,
+        {
+            headers => {
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            },
+            content => POST($self->url_envio_pedido, [], Content => $content)->content,
+        }
+    );
+    warn p $res;
+}
+
+sub push_to_hidden_inputs {
+    my ( $self, $args ) = @_;
+    next unless ref $args eq ref {};
+    my $hidden_input_obj= $args->{ hidden_inputs };
+    if (
+        exists $args->{ fields_map } and
+        exists $args->{ use_object }
+        ) {
+        my $keys_values_map = $args->{ fields_map };
+        my $obj             = $args->{ use_object };
+        foreach my $k ( keys $keys_values_map ) {
+            my $attr_value = $keys_values_map->{$k}->{get_value_from};
+            if ( my $val = $obj->$attr_value ) {
+                push @{ $hidden_input_obj }, ($k => $val );
+            }
+        }
+    } elsif (
+        exists $args->{ items }
+        ) {
+        my $i = 1;
+        foreach my $item ( @{ $args->{items} } ) {
+            push @{ $hidden_input_obj },
+              (
+                   "Item_ID_${i}" => $item->id,
+                "Item_Valor_${i}" => $item->price,
+                 "Item_Nome_${i}" => $item->name,
+                  "Item_Qtd_${i}" => $item->quantity,
+              );
+
+            if (my $category = $item->category) {
+                push @{ $hidden_input_obj }, ( "Item_Categoria_${i}" => $item->category);
+            }
+            $i++;
+        }
+    }
+    return $hidden_input_obj;
+}
+
 sub get_hidden_inputs {
     my ( $self, $info ) = @_;
 
-use Data::Printer;
-warn p $info;
     my $buyer       = $info->{buyer};
     my $cart        = $info->{cart};
     my $shipping    = $info->{shipping};
     my $billing     = $info->{billing};
 
-    my @hidden_inputs = (
-        receiver_email => $self->receiver_email,
-        currency       => $self->currency,
-        encoding       => $self->form_encoding,
-        payment_id     => $info->{payment_id},
-        buyer_name     => $buyer->name,
-        buyer_email    => $buyer->email,
-    );
+    my @hidden_inputs = ( CodigoIntegracao => $self->codigo_integracao );
 
-    my %buyer_extra = (
-        address_line1    => 'shipping_address',
-        address_line2    => 'shipping_address2',
-        address_city     => 'shipping_city',
-        address_state    => 'shipping_state',
-        address_country  => 'shipping_country',
-        address_zip_code => 'shipping_zip',
-    );
+    @hidden_inputs = @{ $self->push_to_hidden_inputs( {
+        hidden_inputs => \@hidden_inputs ,
+        fields_map    => $self->shipping_keys(),
+        use_object    => $shipping
+    } ) };
 
-    for (keys %buyer_extra) {
-        if (my $value = $buyer->$_) {
-            push @hidden_inputs, ( $buyer_extra{$_} => $value );
-        }
-    }
+    @hidden_inputs = @{ $self->push_to_hidden_inputs( {
+        hidden_inputs => \@hidden_inputs ,
+        fields_map    => $self->billing_keys(),
+        use_object    => $billing
+    } ) };
 
-    my $shipping_keys = $self->shipping_keys();
-    foreach my $k ( keys $shipping_keys ) {
-        my $coerce_to = $shipping_keys->{$k}->{value_from};
-        if ( my $val = $shipping->$coerce_to ) {
-            push @hidden_inputs, (
-                $shipping_keys->{$k}->{rename_field_to} => $val );
-        }
-    }
+    @hidden_inputs = @{ $self->push_to_hidden_inputs( {
+        hidden_inputs => \@hidden_inputs ,
+        fields_map    => $self->cart_keys(),
+        use_object    => $cart
+    } ) };
 
+    @hidden_inputs = @{ $self->push_to_hidden_inputs( {
+        hidden_inputs => \@hidden_inputs ,
+        fields_map    => $self->buyer_keys(),
+        use_object    => $buyer
+    } ) };
 
-    my $billing_keys = $self->billing_keys();
-    foreach my $k ( keys $billing_keys ) {
-        my $coerce_to = $billing_keys->{$k}->{value_from};
-        if ( my $val = $billing->$coerce_to ) {
-            push @hidden_inputs, (
-                $billing_keys->{$k}->{rename_field_to} => $val );
-        }
-    }
-
-    my %cart_extra = (
-        discount => 'discount_amount',
-        handling => 'handling_amount',
-        tax      => 'tax_amount',
-    );
-
-    for (keys %cart_extra) {
-        if (my $value = $cart->$_) {
-            push @hidden_inputs, ( $cart_extra{$_} => $value );
-        }
-    }
-
-    my $i = 1;
-
-    foreach my $item (@{ $info->{items} }) {
-        push @hidden_inputs,
-          (
-               "Item_ID_${i}" => $item->id,
-            "Item_Valor_${i}" => $item->price,
-             "Item_Nome_${i}" => $item->name,
-              "Item_Qtd_${i}" => $item->quantity,
-          );
-
-        if (my $category = $item->category) {
-            push @hidden_inputs, ( "Item_Categoria_${i}" => $item->category);
-        }
-
-        $i++;
-    }
+    @hidden_inputs = @{ $self->push_to_hidden_inputs( {
+        hidden_inputs => \@hidden_inputs ,
+        items         => $info->{items}
+    } ) };
 
     return @hidden_inputs;
 }
 
+sub buyer_keys {
+    my ( $self ) = @_;
+    return {
+        IP   => {
+            get_value_from  => 'ip', #Which attrib should i get value from?
+        },
+    };
+}
+
+sub cart_keys {
+    my ( $self ) = @_;
+    return {
+        TipoPagamento => {
+            get_value_from => 'tipo_de_pagamento',
+        },
+        TipoCartao => {
+            get_value_from => 'tipo_cartao',
+        },
+        Total => {
+            get_value_from => 'total',
+        },
+        Parcelas => {
+            get_value_from => 'parcelas',
+        },
+        Data => {
+            get_value_from => 'data',
+        },
+        PedidoID => {
+            get_value_from => 'pedido_id',
+        },
+
+    };
+}
+
+
 sub billing_keys {
     my ( $self ) = @_;
     return {
-        name                => {
-            rename_field_to => 'Cobranca_Nome',
-            value_from      => 'name',
+        Cobranca_Nome                => {
+            get_value_from  => 'name',
         },
-        email => {
-            rename_field_to => 'Cobranca_Email',
-            value_from      => 'email',
+        Cobranca_Email => {
+            get_value_from  => 'email',
         },
-        document_id => {
-            rename_field_to => 'Cobranca_Documento',
-            value_from      => 'document_id',
+        Cobranca_Documento => {
+            get_value_from  => 'document_id',
         },
-        address_street => {
-            rename_field_to => 'Cobranca_Logradouro',
-            value_from      => 'address_street',
+        Cobranca_Logradouro => {
+            get_value_from  => 'address_street',
         },
-        address_number => {
-            rename_field_to => 'Cobranca_Logradouro_Numero',
-            value_from      => 'address_number',
+         Cobranca_Logradouro_Numero=> {
+            get_value_from  => 'address_number',
         },
-        address_district => {
-            rename_field_to => 'Cobranca_Bairro',
-            value_from      => 'address_district',
+        Cobranca_Bairro => {
+            get_value_from  => 'address_district',
         },
-        address_city => {
-            rename_field_to => 'Cobranca_Cidade',
-            value_from      => 'address_city',
+        Cobranca_Cidade=> {
+            get_value_from  => 'address_city',
         },
-        address_state => {
-            rename_field_to => 'Cobranca_Estado',
-            value_from      => 'address_state',
+        Cobranca_Estado => {
+            get_value_from  => 'address_state',
         },
-        address_zip_code => {
-            rename_field_to => 'Cobranca_CEP',
-            value_from      => 'address_zip_code',
+        Cobranca_CEP => {
+            get_value_from  => 'address_zip_code',
         },
-        address_country => {
-            rename_field_to => 'Cobranca_Pais',
-            value_from      => 'address_country',
+        Cobranca_Pais => {
+            get_value_from  => 'address_country',
         },
-        phone => {
-            rename_field_to => 'Cobranca_Telefone',
-            value_from      => 'phone',
+        Cobranca_Logradouro_Complemento => {
+            get_value_from  => 'address_complement',
         },
-        phone_prefix => {
-            rename_field_to => 'Cobranca_DDD_Telefone',
-            value_from      => 'phone_prefix',
+        Cobranca_Telefone => {
+            get_value_from  => 'phone',
         },
-        celular => {
-            rename_field_to => 'Cobranca_Celular',
-            value_from      => 'celular',
+        Cobranca_DDD_Telefone => {
+            get_value_from  => 'phone_prefix',
         },
-        celular_prefix => {
-            rename_field_to => 'Cobranca_DDD_Celular',
-            value_from      => 'celular_prefix',
+        Cobranca_Celular => {
+            get_value_from  => 'celular',
+        },
+        Cobranca_DDD_Celular => {
+            get_value_from  => 'celular_prefix',
         },
     };
 }
@@ -250,61 +292,50 @@ sub billing_keys {
 sub shipping_keys {
     my ( $self ) = @_;
     return {
-        name                => {
-            rename_field_to => 'Entrega_Nome',
-            value_from      => 'name',
+        Entrega_Nome => {
+            get_value_from  => 'name',
         },
-        email => {
-            rename_field_to => 'Entrega_Email',
-            value_from      => 'email',
+        Entrega_Email => {
+            get_value_from  => 'email',
         },
-        document_id => {
-            rename_field_to => 'Entrega_Documento',
-            value_from      => 'document_id',
+        Entrega_Documento => {
+            get_value_from  => 'document_id',
         },
-        address_street => {
-            rename_field_to => 'Entrega_Logradouro',
-            value_from      => 'address_street',
+        Entrega_Logradouro => {
+            get_value_from  => 'address_street',
         },
-        address_number => {
-            rename_field_to => 'Entrega_Logradouro_Numero',
-            value_from      => 'address_number',
+        Entrega_Logradouro_Numero => {
+            get_value_from  => 'address_number',
         },
-        address_district => {
-            rename_field_to => 'Entrega_Bairro',
-            value_from      => 'address_district',
+        Entrega_Bairro => {
+            get_value_from  => 'address_district',
         },
-        address_city => {
-            rename_field_to => 'Entrega_Cidade',
-            value_from      => 'address_city',
+        Entrega_Cidade => {
+            get_value_from  => 'address_city',
         },
-        address_state => {
-            rename_field_to => 'Entrega_Estado',
-            value_from      => 'address_state',
+        Entrega_Estado => {
+            get_value_from  => 'address_state',
         },
-        address_zip_code => {
-            rename_field_to => 'Entrega_CEP',
-            value_from      => 'address_zip_code',
+        Entrega_CEP => {
+            get_value_from  => 'address_zip_code',
         },
-        address_country => {
-            rename_field_to => 'Entrega_Pais',
-            value_from      => 'address_country',
+        Entrega_Pais => {
+            get_value_from  => 'address_country',
         },
-        phone => {
-            rename_field_to => 'Entrega_Telefone',
-            value_from      => 'phone',
+        Entrega_Logradouro_Complemento => {
+            get_value_from  => 'address_complement',
         },
-        phone_prefix => {
-            rename_field_to => 'Entrega_DDD_Telefone',
-            value_from      => 'phone_prefix',
+        Entrega_Telefone => {
+            get_value_from  => 'phone',
         },
-        celular => {
-            rename_field_to => 'Entrega_Celular',
-            value_from      => 'celular',
+        Entrega_DDD_Telefone => {
+            get_value_from  => 'phone_prefix',
         },
-        celular_prefix => {
-            rename_field_to => 'Entrega_DDD_Celular',
-            value_from      => 'celular_prefix',
+        Entrega_Celular => {
+            get_value_from  => 'celular',
+        },
+        Entrega_DDD_Celular => {
+            get_value_from  => 'celular_prefix',
         },
     };
 }

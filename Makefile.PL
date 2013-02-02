@@ -10,5 +10,7 @@ WriteMakefile(
     ABSTRACT     => 'Interface perl para M-ClearSale',
     PREREQ_PM    => {
                      'Test::Simple' => 0.44,
+                     'DateTime' => 0,
+                     'Business::AntiFraud' => 0,
                     },
 );
