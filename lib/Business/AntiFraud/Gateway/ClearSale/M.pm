@@ -11,6 +11,26 @@ extends qw/Business::AntiFraud::Gateway::Base/;
 
 our    $VERSION     = '0.01';
 
+=head1 NAME
+
+Business::AntiFraud::Gateway::ClearSale::M - Interface perl para M-ClearSale
+
+=head1 SYNOPSIS
+
+  use Business::AntiFraud::Gateway::ClearSale::M;
+  blah blah blah
+
+
+=head1 DESCRIPTION
+
+Stub documentation for this module was created by ExtUtils::ModuleMaker.
+It looks like the author of the extension was negligent enough
+to leave the stub unedited.
+
+Blah blah blah.
+
+=head1 ATTRIBUTES
+
 =head2 codigo_integracao
 Seu codigo de integracao
 =cut
@@ -33,7 +53,8 @@ Indica se homologação ou sandbox
 has sandbox => ( is => 'rw' );
 
 =head2 url_alterar_status
-Holds the url_alterar_status. You DONT need to pass it, it will figure out its own url based on $self->sandbox
+Holds the url_alterar_status. You DONT need to pass it,
+it will figure out its own url based on $self->sandbox
 =cut
 
 has url_alterar_status => (
@@ -41,7 +62,8 @@ has url_alterar_status => (
 );
 
 =head2 url_envio_pedido
-Holds the url_alterar_status. You DONT need to pass it, it will figure out its own url based on $self->sandbox
+Holds the url_alterar_status. You DONT need to pass it,
+it will figure out its own url based on $self->sandbox
 =cut
 
 has url_envio_pedido => (
@@ -81,36 +103,46 @@ sub producao {
     $self->url_envio_pedido('http://www.clearsale.com.br/integracaov2/freeclearsale/frame.aspx');
 }
 
-=head2 create_xml
-
-=cut
-
-sub create_xml {
-    my ( $self ) = @_;
-    warn "\n\n*** GERAR FORMULARIO PARA POSTAR ***\n\n";
-
-}
-
 =head2 envar_pedidos
 recebe:
 $form (HTML::Element)
 
-e envia esse form->asHTML e retorna a resposta
+e envia esse form->asHTML e retorna a resposta em html
+
+    "<html>
+
+        ...
+
+        <h3>Status:</h3>
+        <div class="AMA" title="Status: AMA – Analise Manual">
+            <span>AMA</span>
+        </div>
+
+        ...
+
+    </html>",
+        headers    {
+            cache-control      "private",
+            connection         "close",
+            content-length     8323,
+            content-type       "text/html; charset=utf-8",
+            date               "Tue, 05 Feb 2013 11:23:36 GMT",
+            server             "Microsoft-IIS/6.0",
+            x-aspnet-version   "2.0.50727",
+            x-powered-by       "ASP.NET"
+        },
+        protocol   "HTTP/1.1",
+        reason     "OK",
+        status     200,
+        success    1,
+        url        "http://homologacao.clearsale.com.br/integracaov2/freeclearsale/frame.aspx"
+    }
 =cut
 
-sub enviar_pedidos {
+sub enviar_pedido {
     my ( $self, $form ) = @_;
-    use Data::Printer;
-    my $content = [];
-    foreach my $item ( @{ $form->content_array_ref } ) {
-        if (
-            my $field_name  = $item->{name} and
-            my $field_value = $item->{value} )
-        {
-            push @$content, $field_name => $field_value;
-        }
-    };
-    my $res = $self->ua->request(
+    my $content = [map{ $_->{name} => $_->{value} } @{ $form->content_array_ref }];
+    return $self->ua->request(
         'POST',
         $self->url_envio_pedido,
         {
@@ -120,9 +152,85 @@ sub enviar_pedidos {
             content => POST($self->url_envio_pedido, [], Content => $content)->content,
         }
     );
-    warn p $res;
 }
 
+=head2 enviar_pedido_iframe_markup
+Retorna um markup HTML para inserir a imagem de decisão em sua página HTML ex:
+
+    <iframe src="http://homologacao.clearsale.com.br/integracaov2/FreeClearSale/frame.aspx?
+        CodigoInt egracao=00000000-0000-0000-0000-000000000000&PedidoID=12345&Data=..."
+        width="280" height="85" frameborder="0" scrolling="no">
+        <P>Seu Browser não suporta iframes</P>
+    </iframe>
+
+=cut
+
+sub enviar_pedido_iframe_markup {
+    my ( $self, $form ) = @_;
+    my $content = [map{ $_->{name} => $_->{value} } @{ $form->content_array_ref }];
+    my $query_str = POST($self->url_envio_pedido, [], Content => $content)->content;
+    my $html_markup = q{
+        <iframe src="}.
+        $self->url_envio_pedido .'?'. $query_str
+        .q{" width="280" height="85" frameborder="0" scrolling="no"><P>Seu Browser não suporta iframes</P></iframe>
+    };
+    return $html_markup;
+}
+
+=head2 atualizar_status( $pedido_id, $status )
+Recebe:
+$pedido_id: o id do pedido registrado no clearsale
+$status: pode ser um destes:
+CAN - Cancelado pelo cliente
+SUS - Suspeito
+APM - Aprovado
+FRD - Fraude Confirmada
+RPM - Reprovado
+
+    my $res = $antifraud->atualizar_status( $pedido_id, $status );
+    use Data::Printer; warn p $res;
+
+    \ {
+        content    "0|OK",
+        headers    {
+            cache-control      "private",
+            connection         "close",
+            content-length     4,
+            content-type       "text/html; charset=utf-8",
+            date               "Tue, 05 Feb 2013 11:23:37 GMT",
+            server             "Microsoft-IIS/6.0",
+            x-aspnet-version   "2.0.50727",
+            x-powered-by       "ASP.NET"
+        },
+        protocol   "HTTP/1.1",
+        reason     "OK",
+        status     200,
+        success    1,
+        url        "http://homologacao.clearsale.com.br/integracaov2/FreeClearSale/AlterarStatus.aspx"
+    }
+
+=cut
+
+sub atualizar_status {
+    my ( $self, $pedido_id, $status ) = @_;
+    my $content = [
+        PedidoID            => $pedido_id,
+        Status              => $status,
+        CodigoIntegracao    => $self->codigo_integracao,
+    ];
+    return $self->ua->request(
+        'POST',
+        $self->url_alterar_status,
+        {
+            headers => {
+                'Content-Type' => 'application/x-www-form-urlencoded',
+            },
+            content => POST($self->url_envio_pedido, [], Content => $content)->content,
+        }
+    );
+}
+
+#insere mais itens para o formulario
 sub push_to_hidden_inputs {
     my ( $self, $args ) = @_;
     next unless ref $args eq ref {};
@@ -173,25 +281,25 @@ sub get_hidden_inputs {
 
     @hidden_inputs = @{ $self->push_to_hidden_inputs( {
         hidden_inputs => \@hidden_inputs ,
-        fields_map    => $self->shipping_keys(),
+        fields_map    => $self->shipping_fields(),
         use_object    => $shipping
     } ) };
 
     @hidden_inputs = @{ $self->push_to_hidden_inputs( {
         hidden_inputs => \@hidden_inputs ,
-        fields_map    => $self->billing_keys(),
+        fields_map    => $self->billing_fields(),
         use_object    => $billing
     } ) };
 
     @hidden_inputs = @{ $self->push_to_hidden_inputs( {
         hidden_inputs => \@hidden_inputs ,
-        fields_map    => $self->cart_keys(),
+        fields_map    => $self->cart_fields(),
         use_object    => $cart
     } ) };
 
     @hidden_inputs = @{ $self->push_to_hidden_inputs( {
         hidden_inputs => \@hidden_inputs ,
-        fields_map    => $self->buyer_keys(),
+        fields_map    => $self->buyer_fields(),
         use_object    => $buyer
     } ) };
 
@@ -203,7 +311,7 @@ sub get_hidden_inputs {
     return @hidden_inputs;
 }
 
-sub buyer_keys {
+sub buyer_fields {
     my ( $self ) = @_;
     return {
         IP   => {
@@ -212,7 +320,7 @@ sub buyer_keys {
     };
 }
 
-sub cart_keys {
+sub cart_fields {
     my ( $self ) = @_;
     return {
         TipoPagamento => {
@@ -238,7 +346,7 @@ sub cart_keys {
 }
 
 
-sub billing_keys {
+sub billing_fields {
     my ( $self ) = @_;
     return {
         Cobranca_Nome                => {
@@ -289,7 +397,7 @@ sub billing_keys {
     };
 }
 
-sub shipping_keys {
+sub shipping_fields {
     my ( $self ) = @_;
     return {
         Entrega_Nome => {
@@ -340,23 +448,6 @@ sub shipping_keys {
     };
 }
 
-=head1 NAME
-
-Business::AntiFraud::Gateway::ClearSale::M - Interface perl para M-ClearSale
-
-=head1 SYNOPSIS
-
-  use Business::AntiFraud::Gateway::ClearSale::M;
-  blah blah blah
-
-
-=head1 DESCRIPTION
-
-Stub documentation for this module was created by ExtUtils::ModuleMaker.
-It looks like the author of the extension was negligent enough
-to leave the stub unedited.
-
-Blah blah blah.
 
 
 =head1 USAGE

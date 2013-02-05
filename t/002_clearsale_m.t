@@ -5,6 +5,7 @@
 use warnings;
 use strict;
 use Test::More;
+use Data::Printer;
 
 BEGIN { use_ok('Business::AntiFraud'); }
 
@@ -33,6 +34,7 @@ if ($@) {
 
 isa_ok( $antifraud, 'Business::AntiFraud::Gateway::ClearSale::M' );
 
+my $pedido_num = 'P3D1D0-ID-'.int rand(999999);
 my $data = DateTime->new(
     year   => 2012,
     month  => 04,
@@ -44,7 +46,7 @@ my $data = DateTime->new(
 
 my $cart = $antifraud->new_cart(
     {
-        pedido_id => 'P3D1D0-1D-1NT3RN0-420',
+        pedido_id => $pedido_num,
         data      => $data,
         parcelas  => 2,
         tipo_de_pagamento =>
@@ -198,13 +200,11 @@ $cart->add_item(
     is( $item->price,    '10.00', 'item price is correct' );
     is( $item->quantity, 1,       'item quantity is correct' );
 }
-
 {
     ok( my $form = $cart->get_form_to_pay('pay123'), 'get form' );
     isa_ok( $form, 'HTML::Element' );
-    warn "\n" . $form->as_HTML;
-    warn "^^^";
-
+   #warn "\n" . $form->as_HTML;
+    #ITEM.1
     is( get_value_for( $form, 'item_Valor_1' ),
         '200.50', 'form value item1_price is correct' );
     is( get_value_for( $form, 'item_Qtd_1' ),
@@ -212,6 +212,7 @@ $cart->add_item(
     is( get_value_for( $form, 'item_ID_1' ),
         '1', 'form value item1_id is correct' );
 
+    #ITEM.2
     is( get_value_for( $form, 'item_Valor_2' ),
         '0.56', 'form value item2_price is correct' );
     is( get_value_for( $form, 'item_Qtd_2' ),
@@ -219,6 +220,7 @@ $cart->add_item(
     is( get_value_for( $form, 'item_ID_2' ),
         '02', 'form value item2_id is correct' );
 
+    #ITEM.3
     is( get_value_for( $form, 'item_Valor_3' ),
         '10.00', 'form value item3_price is correct' );
     is( get_value_for( $form, 'item_Qtd_3' ),
@@ -226,6 +228,7 @@ $cart->add_item(
     is( get_value_for( $form, 'item_ID_3' ),
         '03', 'form value item3_id is correct' );
 
+    #ITEM.4
     is( get_value_for( $form, 'item_Valor_4' ),
         '10.00', 'form value item4_price is correct' );
     is( get_value_for( $form, 'item_Qtd_4' ),
@@ -233,70 +236,78 @@ $cart->add_item(
     is( get_value_for( $form, 'item_ID_4' ),
         'my-id', 'form value item4_id is correct' );
 
-    is( get_value_for( $form, 'PedidoID' ), 'P3D1D0-1D-1NT3RN0-420', '' );
+    is( get_value_for( $form, 'PedidoID' ), $pedido_num, '' );
     is(
         get_value_for( $form, 'Data' ),
         '20-04-2012 04:20:00',
-        'Its 420! hurry up!'
+        'time'
     );
     is( get_value_for( $form, 'IP' ), '200.232.107.100', '' );
-
     is( get_value_for( $form, 'TipoPagamento' ), '1', '' );
     is( get_value_for( $form, 'TipoCartao' ),    '2', '' );
 
-    is( get_value_for( $form, 'Cobranca_CEP' ),       '99900-022',         '' );
-    is( get_value_for( $form, 'Cobranca_Pais' ),      'Brazil',            '' );
-    is( get_value_for( $form, 'Cobranca_Nome' ),      'Nome Billing',      '' );
-    is( get_value_for( $form, 'Cobranca_Email' ),     'email@billing.com', '' );
-    is( get_value_for( $form, 'Cobranca_Bairro' ),    'Bills',             '' );
-    is( get_value_for( $form, 'Cobranca_Cidade' ),    'Bill City',         '' );
-    is( get_value_for( $form, 'Cobranca_Estado' ),    'Vila Bill',         '' );
-    is( get_value_for( $form, 'Cobranca_Telefone' ),  '5670-0201',         '' );
-    is( get_value_for( $form, 'Cobranca_Documento' ), '999222111222',      '' );
-    is( get_value_for( $form, 'Cobranca_Logradouro' ),   'Rua billing', '' );
-    is( get_value_for( $form, 'Cobranca_DDD_Telefone' ), '11',          '' );
-    is( get_value_for( $form, 'Cobranca_Logradouro_Numero' ), '333', '' );
-    is( get_value_for( $form, 'Cobranca_Logradouro_Complemento' ),
-        'apto 50', '' );
+    #Cobranca
+    is( get_value_for( $form, 'Cobranca_CEP' ),       '99900-022',         'Cobranca_CEP' );
+    is( get_value_for( $form, 'Cobranca_Pais' ),      'Brazil',            'Cobranca_Pais' );
+    is( get_value_for( $form, 'Cobranca_Nome' ),      'Nome Billing',      'Cobranca_Nome' );
+    is( get_value_for( $form, 'Cobranca_Email' ),     'email@billing.com', 'Cobranca_Email' );
+    is( get_value_for( $form, 'Cobranca_Bairro' ),    'Bills',             'Cobranca_Bairro' );
+    is( get_value_for( $form, 'Cobranca_Cidade' ),    'Bill City',         'Cobranca_Cidade' );
+    is( get_value_for( $form, 'Cobranca_Estado' ),    'Vila Bill',         'Cobranca_Estado' );
+    is( get_value_for( $form, 'Cobranca_Telefone' ),  '5670-0201',         'Cobranca_Telefone' );
+    is( get_value_for( $form, 'Cobranca_Documento' ), '999222111222',      'Cobranca_Documento' );
+    is( get_value_for( $form, 'Cobranca_Logradouro' ),   'Rua billing', 'Cobranca_Logradouro' );
+    is( get_value_for( $form, 'Cobranca_DDD_Telefone' ), '11',          'Cobranca_DDD_Telefone' );
+    is( get_value_for( $form, 'Cobranca_Logradouro_Numero' ), '333', 'Cobranca_Logradouro_Numero' );
+    is( get_value_for( $form, 'Cobranca_Logradouro_Complemento' ),'apto 50', 'Cobranca_Logradouro_Complemento' );
+    is( get_value_for( $form, 'Cobranca_DDD_Celular' ), '15',         'Cobranca_DDD_Celular' );
+    is( get_value_for( $form, 'Cobranca_Celular' ),     '99900-9382', 'Cobranca_Celular' );
 
-    is( get_value_for( $form, 'Entrega_Nome' ),      'Nome Shipping',      '' );
-    is( get_value_for( $form, 'Entrega_Email' ),     'email@shipping.com', '' );
-    is( get_value_for( $form, 'Entrega_Documento' ), '999222111555',       '' );
-    is( get_value_for( $form, 'Entrega_Logradouro' ), 'Rua shipping', '' );
-    is( get_value_for( $form, 'Entrega_Logradouro_Numero' ), '334', '' );
-    is( get_value_for( $form, 'Entrega_Logradouro_Complemento' ),
-        'apto 40', '' );
-    is( get_value_for( $form, 'Entrega_Bairro' ), 'Ships',         '' );
-    is( get_value_for( $form, 'Entrega_Cidade' ), 'Shipping City', '' );
-    is( get_value_for( $form, 'Entrega_Estado' ), 'Vila Shipping', '' );
-    is( get_value_for( $form, 'Entrega_CEP' ),    '99900-099',     '' );
-    is(
-        get_value_for(
-            $form,
-            'Entrega_Pais'
-        ),
-        'Espanha',
-        ''
-    );
-    is( get_value_for( $form, 'Entrega_DDD_Telefone' ), '13',        '' );
-    is( get_value_for( $form, 'Entrega_Telefone' ),     '7770-0201', '' );
+    #Entrega
+    is( get_value_for( $form, 'Entrega_Nome' ),      'Nome Shipping',      'Entrega_Nome' );
+    is( get_value_for( $form, 'Entrega_Email' ),     'email@shipping.com', 'Entrega_Email' );
+    is( get_value_for( $form, 'Entrega_Documento' ), '999222111555',       'Entrega_Documento' );
+    is( get_value_for( $form, 'Entrega_Logradouro' ), 'Rua shipping', 'Entrega_Logradouro' );
+    is( get_value_for( $form, 'Entrega_Logradouro_Numero' ), '334', 'Entrega_Logradouro_Numero' );
+    is( get_value_for( $form, 'Entrega_Logradouro_Complemento' ), 'apto 40', 'Entrega_Logradouro_Complemento' );
+    is( get_value_for( $form, 'Entrega_Bairro' ), 'Ships',         'Entrega_Bairro' );
+    is( get_value_for( $form, 'Entrega_Cidade' ), 'Shipping City', 'Entrega_Cidade' );
+    is( get_value_for( $form, 'Entrega_Estado' ), 'Vila Shipping', 'Entrega_Estado' );
+    is( get_value_for( $form, 'Entrega_CEP' ),    '99900-099',     'Entrega_CEP' );
+    is( get_value_for( $form, 'Entrega_Pais' ), 'Espanha' , 'Entrega_Pais' );
+    is( get_value_for( $form, 'Entrega_DDD_Telefone' ), '13',        'Entrega_DDD_Telefone' );
+    is( get_value_for( $form, 'Entrega_Telefone' ),     '7770-0201', 'Entrega_Telefone' );
+    is( get_value_for( $form, 'Entrega_DDD_Celular' ),  '14',         'Entrega_DDD_Celular' );
+    is( get_value_for( $form, 'Entrega_Celular' ),      '99900-0000', 'Entrega_Celular' );
 
-    is( get_value_for( $form, 'Cobranca_DDD_Celular' ), '15',         '' );
-    is( get_value_for( $form, 'Cobranca_Celular' ),     '99900-9382', '' );
-    is( get_value_for( $form, 'Entrega_DDD_Celular' ),  '14',         '' );
-    is( get_value_for( $form, 'Entrega_Celular' ),      '99900-0000', '' );
+    # Envia pedido
+    my $res = &enviar_pedido( $antifraud , $form );
+    is( $res->{ content } =~ m/Status:/mig, 1, 'Enviei o pedido... analisei a resposta e encontrei um "Status:"... parece que deu certo.' );
 
-    $antifraud->enviar_pedidos( $form );
+    # Agora apos enviar e registrar o pedido, vou alterar o status indicando se eu fechei a compra e tal..
+    # digamos que é o testemunho da minha loja sob este comprador..
+    my $res_status = &atualizar_status( $antifraud, $pedido_num, 'APM' );
+    is( $res_status->{ content } =~ m/OK/ig, 1, 'Tentando alterar status do pedido... parece que chegou um OK' );
+
+    # Markup para o botao do clearsale
+    my $iframe_html = $antifraud->enviar_pedido_iframe_markup( $form );
+    is( $iframe_html =~ m/<iframe/ig, 1, 'trouxe o markup para gerar botao do pedido' );
+}
+
+sub atualizar_status {
+    my ( $antifraud, $pedido_id, $status ) = @_;
+    return $antifraud->atualizar_status( $pedido_id, $status );
+}
+
+sub enviar_pedido {
+    my ( $antifraud,  $form ) = @_;
+    return $antifraud->enviar_pedido( $form );
 }
 
 
-warn " ENVIAR CODIGO INTEGRACAO TB ";
-
 done_testing;
-use Data::Printer;
 
 sub get_value_for {
     my ( $form, $name ) = @_;
-    warn ' =>' . $name;
     return $form->look_down( _tag => 'input', name => $name )->attr('value');
 }
