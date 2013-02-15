@@ -10,7 +10,6 @@ Business::AntiFraud::Buyer::ClearSale::M
 =head1 DESCRIPTION
 
 extends Business::AntiFraud::Buyer
-and adds some extra attributes specific to moip
 
 =head1 ATTRIBUTES
 
